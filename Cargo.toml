@@ -1,0 +1,6 @@
+[package]
+name = "ternary-network"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Network science for ternary-weighted graphs"
