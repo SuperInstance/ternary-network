@@ -144,19 +144,19 @@ impl TernaryNetwork {
         sum / nodes.len() as f64
     }
 
-    /// Shortest path using BFS with ternary costs. Returns (path, total_cost).
+    /// Shortest path using 0-1 BFS with ternary costs. Returns (path, total_cost).
     /// Cost: Positive=1, Zero=0, Negative=1 (absolute value).
+    /// Zero-cost edges are prioritized via deque front insertion (0-1 BFS).
     pub fn shortest_path(&self, from: usize, to: usize) -> Option<(Vec<usize>, i32)> {
         if from == to {
             return Some((vec![from], 0));
         }
-        // Dijkstra-like BFS with cost tracking
         let mut dist: HashMap<usize, i32> = HashMap::new();
         let mut prev: HashMap<usize, usize> = HashMap::new();
         let mut visited: HashSet<usize> = HashSet::new();
         dist.insert(from, 0);
 
-        // Simple priority queue via Vec (sufficient for small graphs, no deps)
+        // 0-1 BFS: zero-cost edges push to front, unit-cost edges push to back
         let mut queue: VecDeque<usize> = VecDeque::new();
         queue.push_back(from);
 
@@ -184,7 +184,12 @@ impl TernaryNetwork {
                     if new_dist < *old_dist {
                         dist.insert(neighbor, new_dist);
                         prev.insert(neighbor, current);
-                        queue.push_back(neighbor);
+                        // Zero-cost edges go to front for immediate processing
+                        if cost == 0 {
+                            queue.push_front(neighbor);
+                        } else {
+                            queue.push_back(neighbor);
+                        }
                     }
                 }
             }

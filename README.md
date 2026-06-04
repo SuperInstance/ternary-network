@@ -117,6 +117,14 @@ Betweenness centrality counts how many shortest paths pass through a given node,
 | `ternary-bayesian` | Bayesian network structure relates to graph topology |
 | `ternary-econ` | Market agent interactions form ternary-weighted networks |
 
+## Known Limitations
+
+- **`betweenness_centrality` is O(n³).** It runs all-pairs shortest paths for each target node. Not scalable beyond hundreds of nodes.
+- **`modularity` is O(n²)** in the number of nodes — quadratic, slow for large graphs.
+- **`detect_communities` is non-deterministic.** Results depend on node ordering in the internal `HashMap`. Only 10 iterations of label propagation are used.
+- **`is_small_world` uses ad-hoc thresholds** (CC > 0.1, avg path length < n/2) with no theoretical basis.
+- **Structural balance is mentioned but not implemented.** There is no API for checking balanced triangles despite the concept being discussed in the documentation.
+
 ## License
 
 MIT
