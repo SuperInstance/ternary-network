@@ -125,6 +125,15 @@ Betweenness centrality counts how many shortest paths pass through a given node,
 - **`is_small_world` uses ad-hoc thresholds** (CC > 0.1, avg path length < n/2) with no theoretical basis.
 - **Structural balance is mentioned but not implemented.** There is no API for checking balanced triangles despite the concept being discussed in the documentation.
 
+## See Also
+
+- **ternary-graph** — Graph algorithms for ternary-weighted edges
+- **ternary-mesh** — Mesh network topology and routing
+- **ternary-topology** — Topological analysis of ternary strategy spaces
+- **ternary-petri** — Petri net models with ternary token values
+- **ternary-current** — Current flow and propagation in ternary networks
+- **ternary-clustering** — Clustering algorithms for ternary data
+
 ## License
 
 MIT
