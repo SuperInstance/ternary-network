@@ -558,20 +558,55 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_communities() {
+    fn test_detect_communities_assigns_every_node() {
         let mut net = TernaryNetwork::new(false);
-        // Two clusters
+        // Two clusters joined by a single bridge.
         net.add_edge(0, 1, TernaryWeight::Positive);
         net.add_edge(1, 2, TernaryWeight::Positive);
         net.add_edge(0, 2, TernaryWeight::Positive);
         net.add_edge(3, 4, TernaryWeight::Positive);
         net.add_edge(4, 5, TernaryWeight::Positive);
         net.add_edge(3, 5, TernaryWeight::Positive);
-        // Single bridge
         net.add_edge(2, 3, TernaryWeight::Positive);
+
         let comms = net.detect_communities();
-        // Should have some community assignment
-        assert!(comms.len() >= 3);
+        let node_ids = net.nodes();
+
+        // Every node must receive a label.
+        assert_eq!(comms.len(), node_ids.len());
+        for &n in &node_ids {
+            assert!(comms.contains_key(&n), "node {n} has no community");
+            // Initial labels are the node ids, so every assigned label is in range.
+            assert!(comms[&n] < node_ids.len());
+        }
+    }
+
+    #[test]
+    fn test_detect_communities_disconnected_components() {
+        // Two triangles with NO bridge: label propagation cannot move a label
+        // across components, so the two components must keep distinct labels.
+        let mut net = TernaryNetwork::new(false);
+        net.add_edge(0, 1, TernaryWeight::Positive);
+        net.add_edge(1, 2, TernaryWeight::Positive);
+        net.add_edge(0, 2, TernaryWeight::Positive);
+        net.add_edge(3, 4, TernaryWeight::Positive);
+        net.add_edge(4, 5, TernaryWeight::Positive);
+        net.add_edge(3, 5, TernaryWeight::Positive);
+
+        let comms = net.detect_communities();
+        let label_of = |n: usize| *comms.get(&n).expect("missing node label");
+
+        // Component A labels stay within {0,1,2}; component B within {3,4,5}.
+        let a_labels: HashSet<usize> = [0usize, 1, 2].iter().copied().map(label_of).collect();
+        let b_labels: HashSet<usize> = [3usize, 4, 5].iter().copied().map(label_of).collect();
+
+        // No label is shared across the two components -> at least 2 communities.
+        assert_eq!(
+            a_labels.intersection(&b_labels).count(),
+            0,
+            "labels leaked across disconnected components"
+        );
+        assert!(!a_labels.is_empty() && !b_labels.is_empty());
     }
 
     #[test]
@@ -597,15 +632,27 @@ mod tests {
     }
 
     #[test]
-    fn test_is_small_world() {
-        // Create a ring lattice which should be small-world-ish
+    fn test_is_small_world_complete_graph() {
+        // A complete graph maximizes clustering (cc = 1.0) and minimizes path
+        // length (every pair is distance 1), so it must be detected as small-world.
         let mut net = TernaryNetwork::new(false);
-        for i in 0..10 {
-            net.add_edge(i, (i + 1) % 10, TernaryWeight::Positive);
-            net.add_edge(i, (i + 2) % 10, TernaryWeight::Positive);
+        for i in 0..5 {
+            for j in (i + 1)..5 {
+                net.add_edge(i, j, TernaryWeight::Positive);
+            }
         }
-        // May or may not detect as small-world, just ensure it doesn't panic
-        let _ = net.is_small_world();
+        assert!(net.is_small_world());
+    }
+
+    #[test]
+    fn test_is_small_world_line_graph() {
+        // A line/path graph has no triangles -> cc = 0.0 -> the early return
+        // fires, so it must NOT be classified as small-world.
+        let mut net = TernaryNetwork::new(false);
+        for i in 0..5 {
+            net.add_edge(i, i + 1, TernaryWeight::Positive);
+        }
+        assert!(!net.is_small_world());
     }
 
     #[test]
