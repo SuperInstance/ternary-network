@@ -41,7 +41,6 @@ impl TernaryWeight {
 pub struct TernaryNetwork {
     /// Adjacency: node -> [(neighbor, weight)]
     adj: HashMap<usize, Vec<(usize, TernaryWeight)>>,
-    node_count: usize,
     directed: bool,
 }
 
@@ -49,17 +48,13 @@ impl TernaryNetwork {
     pub fn new(directed: bool) -> Self {
         TernaryNetwork {
             adj: HashMap::new(),
-            node_count: 0,
             directed,
         }
     }
 
     /// Ensure a node exists in the graph.
     pub fn add_node(&mut self, node: usize) {
-        if !self.adj.contains_key(&node) {
-            self.adj.insert(node, Vec::new());
-            self.node_count = self.node_count.max(node + 1);
-        }
+        self.adj.entry(node).or_default();
     }
 
     /// Add an edge with ternary weight. For undirected graphs, adds both directions.
@@ -84,7 +79,11 @@ impl TernaryNetwork {
 
     pub fn edge_count(&self) -> usize {
         let count: usize = self.adj.values().map(|v| v.len()).sum();
-        if self.directed { count } else { count / 2 }
+        if self.directed {
+            count
+        } else {
+            count / 2
+        }
     }
 
     pub fn neighbors(&self, node: usize) -> &[(usize, TernaryWeight)] {
@@ -103,21 +102,39 @@ impl TernaryNetwork {
 
     /// Positive degree: number of edges with Positive weight.
     pub fn positive_degree(&self, node: usize) -> usize {
-        self.adj.get(&node).map(|v| v.iter().filter(|(_, w)| *w == TernaryWeight::Positive).count()).unwrap_or(0)
+        self.adj
+            .get(&node)
+            .map(|v| {
+                v.iter()
+                    .filter(|(_, w)| *w == TernaryWeight::Positive)
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     /// Negative degree: number of edges with Negative weight.
     pub fn negative_degree(&self, node: usize) -> usize {
-        self.adj.get(&node).map(|v| v.iter().filter(|(_, w)| *w == TernaryWeight::Negative).count()).unwrap_or(0)
+        self.adj
+            .get(&node)
+            .map(|v| {
+                v.iter()
+                    .filter(|(_, w)| *w == TernaryWeight::Negative)
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     /// Clustering coefficient for a single node.
     pub fn clustering_coefficient(&self, node: usize) -> f64 {
-        let neighbors: Vec<usize> = self.adj.get(&node)
+        let neighbors: Vec<usize> = self
+            .adj
+            .get(&node)
             .map(|v| v.iter().map(|(n, _)| *n).collect())
             .unwrap_or_default();
         let k = neighbors.len();
-        if k < 2 { return 0.0; }
+        if k < 2 {
+            return 0.0;
+        }
 
         let _neighbor_set: HashSet<usize> = neighbors.iter().copied().collect();
         let mut triangles = 0;
@@ -139,7 +156,9 @@ impl TernaryNetwork {
     /// Average clustering coefficient across all nodes.
     pub fn avg_clustering_coefficient(&self) -> f64 {
         let nodes = self.nodes();
-        if nodes.is_empty() { return 0.0; }
+        if nodes.is_empty() {
+            return 0.0;
+        }
         let sum: f64 = nodes.iter().map(|n| self.clustering_coefficient(*n)).sum();
         sum / nodes.len() as f64
     }
@@ -161,7 +180,9 @@ impl TernaryNetwork {
         queue.push_back(from);
 
         while let Some(current) = queue.pop_front() {
-            if visited.contains(&current) { continue; }
+            if visited.contains(&current) {
+                continue;
+            }
             visited.insert(current);
 
             if current == to {
@@ -201,10 +222,13 @@ impl TernaryNetwork {
     /// Q = (1/2m) * sum_ij [ A_ij - k_i*k_j/(2m) ] * delta(c_i, c_j)
     pub fn modularity(&self, communities: &HashMap<usize, usize>) -> f64 {
         let m = self.edge_count() as f64;
-        if m == 0.0 { return 0.0; }
+        if m == 0.0 {
+            return 0.0;
+        }
 
         let nodes = self.nodes();
-        let degree: HashMap<usize, usize> = nodes.iter()
+        let degree: HashMap<usize, usize> = nodes
+            .iter()
             .map(|&n| (n, self.adj.get(&n).map(|v| v.len()).unwrap_or(0)))
             .collect();
 
@@ -213,9 +237,13 @@ impl TernaryNetwork {
             for &j in &nodes {
                 let ci = communities.get(&i).unwrap_or(&0);
                 let cj = communities.get(&j).unwrap_or(&0);
-                if ci != cj { continue; }
+                if ci != cj {
+                    continue;
+                }
 
-                let a_ij = self.adj.get(&i)
+                let a_ij = self
+                    .adj
+                    .get(&i)
                     .map(|v| v.iter().filter(|(n, _)| *n == j).count() as f64)
                     .unwrap_or(0.0);
 
@@ -238,13 +266,19 @@ impl TernaryNetwork {
         // A few rounds of label propagation
         for _ in 0..10 {
             for &node in &nodes {
-                let neighbor_labels: Vec<usize> = self.adj.get(&node)
-                    .map(|v| v.iter()
-                        .filter_map(|(n, _)| labels.get(n).copied())
-                        .collect())
+                let neighbor_labels: Vec<usize> = self
+                    .adj
+                    .get(&node)
+                    .map(|v| {
+                        v.iter()
+                            .filter_map(|(n, _)| labels.get(n).copied())
+                            .collect()
+                    })
                     .unwrap_or_default();
 
-                if neighbor_labels.is_empty() { continue; }
+                if neighbor_labels.is_empty() {
+                    continue;
+                }
 
                 // Find most common label
                 let mut counts: HashMap<usize, usize> = HashMap::new();
@@ -267,7 +301,9 @@ impl TernaryNetwork {
 
         for &s in &nodes {
             for &t in &nodes {
-                if s == t || s == target || t == target { continue; }
+                if s == t || s == target || t == target {
+                    continue;
+                }
                 if let Some((path, _)) = self.shortest_path(s, t) {
                     if path.contains(&target) {
                         betweenness += 1.0;
@@ -276,25 +312,35 @@ impl TernaryNetwork {
             }
         }
         let n = nodes.len() as f64;
-        if n > 2.0 { betweenness / ((n - 1.0) * (n - 2.0)) } else { betweenness }
+        if n > 2.0 {
+            betweenness / ((n - 1.0) * (n - 2.0))
+        } else {
+            betweenness
+        }
     }
 
     /// Closeness centrality for a node.
     pub fn closeness_centrality(&self, node: usize) -> f64 {
         let nodes = self.nodes();
         let n = nodes.len() as f64;
-        if n <= 1.0 { return 0.0; }
+        if n <= 1.0 {
+            return 0.0;
+        }
 
         let mut total_dist = 0.0;
         let mut reachable = 0;
         for &other in &nodes {
-            if other == node { continue; }
+            if other == node {
+                continue;
+            }
             if let Some((_, cost)) = self.shortest_path(node, other) {
                 total_dist += cost as f64;
                 reachable += 1;
             }
         }
-        if total_dist == 0.0 || reachable == 0 { return 0.0; }
+        if total_dist == 0.0 || reachable == 0 {
+            return 0.0;
+        }
         (reachable as f64) / (total_dist * (n - 1.0))
     }
 
@@ -303,10 +349,14 @@ impl TernaryNetwork {
     pub fn is_small_world(&self) -> bool {
         let nodes = self.nodes();
         let n = nodes.len();
-        if n < 4 { return false; }
+        if n < 4 {
+            return false;
+        }
 
         let cc = self.avg_clustering_coefficient();
-        if cc == 0.0 { return false; }
+        if cc == 0.0 {
+            return false;
+        }
 
         // Compute average shortest path length
         let mut total_pl = 0.0;
@@ -319,7 +369,9 @@ impl TernaryNetwork {
                 }
             }
         }
-        if count == 0 { return false; }
+        if count == 0 {
+            return false;
+        }
         let avg_pl = total_pl / count as f64;
 
         // Small-world: high clustering + short path length
@@ -497,27 +549,64 @@ mod tests {
         net.add_edge(0, 1, TernaryWeight::Positive);
         net.add_edge(2, 3, TernaryWeight::Positive);
         let mut comms = HashMap::new();
-        comms.insert(0, 0); comms.insert(1, 0);
-        comms.insert(2, 1); comms.insert(3, 1);
+        comms.insert(0, 0);
+        comms.insert(1, 0);
+        comms.insert(2, 1);
+        comms.insert(3, 1);
         let q = net.modularity(&comms);
         assert!(q > 0.0);
     }
 
     #[test]
-    fn test_detect_communities() {
+    fn test_detect_communities_assigns_every_node() {
         let mut net = TernaryNetwork::new(false);
-        // Two clusters
+        // Two clusters joined by a single bridge.
         net.add_edge(0, 1, TernaryWeight::Positive);
         net.add_edge(1, 2, TernaryWeight::Positive);
         net.add_edge(0, 2, TernaryWeight::Positive);
         net.add_edge(3, 4, TernaryWeight::Positive);
         net.add_edge(4, 5, TernaryWeight::Positive);
         net.add_edge(3, 5, TernaryWeight::Positive);
-        // Single bridge
         net.add_edge(2, 3, TernaryWeight::Positive);
+
         let comms = net.detect_communities();
-        // Should have some community assignment
-        assert!(comms.len() >= 3);
+        let node_ids = net.nodes();
+
+        // Every node must receive a label.
+        assert_eq!(comms.len(), node_ids.len());
+        for &n in &node_ids {
+            assert!(comms.contains_key(&n), "node {n} has no community");
+            // Initial labels are the node ids, so every assigned label is in range.
+            assert!(comms[&n] < node_ids.len());
+        }
+    }
+
+    #[test]
+    fn test_detect_communities_disconnected_components() {
+        // Two triangles with NO bridge: label propagation cannot move a label
+        // across components, so the two components must keep distinct labels.
+        let mut net = TernaryNetwork::new(false);
+        net.add_edge(0, 1, TernaryWeight::Positive);
+        net.add_edge(1, 2, TernaryWeight::Positive);
+        net.add_edge(0, 2, TernaryWeight::Positive);
+        net.add_edge(3, 4, TernaryWeight::Positive);
+        net.add_edge(4, 5, TernaryWeight::Positive);
+        net.add_edge(3, 5, TernaryWeight::Positive);
+
+        let comms = net.detect_communities();
+        let label_of = |n: usize| *comms.get(&n).expect("missing node label");
+
+        // Component A labels stay within {0,1,2}; component B within {3,4,5}.
+        let a_labels: HashSet<usize> = [0usize, 1, 2].iter().copied().map(label_of).collect();
+        let b_labels: HashSet<usize> = [3usize, 4, 5].iter().copied().map(label_of).collect();
+
+        // No label is shared across the two components -> at least 2 communities.
+        assert_eq!(
+            a_labels.intersection(&b_labels).count(),
+            0,
+            "labels leaked across disconnected components"
+        );
+        assert!(!a_labels.is_empty() && !b_labels.is_empty());
     }
 
     #[test]
@@ -543,15 +632,27 @@ mod tests {
     }
 
     #[test]
-    fn test_is_small_world() {
-        // Create a ring lattice which should be small-world-ish
+    fn test_is_small_world_complete_graph() {
+        // A complete graph maximizes clustering (cc = 1.0) and minimizes path
+        // length (every pair is distance 1), so it must be detected as small-world.
         let mut net = TernaryNetwork::new(false);
-        for i in 0..10 {
-            net.add_edge(i, (i + 1) % 10, TernaryWeight::Positive);
-            net.add_edge(i, (i + 2) % 10, TernaryWeight::Positive);
+        for i in 0..5 {
+            for j in (i + 1)..5 {
+                net.add_edge(i, j, TernaryWeight::Positive);
+            }
         }
-        // May or may not detect as small-world, just ensure it doesn't panic
-        let _ = net.is_small_world();
+        assert!(net.is_small_world());
+    }
+
+    #[test]
+    fn test_is_small_world_line_graph() {
+        // A line/path graph has no triangles -> cc = 0.0 -> the early return
+        // fires, so it must NOT be classified as small-world.
+        let mut net = TernaryNetwork::new(false);
+        for i in 0..5 {
+            net.add_edge(i, i + 1, TernaryWeight::Positive);
+        }
+        assert!(!net.is_small_world());
     }
 
     #[test]
